@@ -1,0 +1,56 @@
+const nbSensor = 4;
+
+node Vanner
+     state
+	flow	: [0, 2];
+	stucked : bool;
+     init
+	flow	:= 0;
+	stucked := false;
+     event
+	inc, dec;
+     trans
+	not stucked |- inc -> flow := flow +1;
+	not stucked |- dec -> flow := flow -1;
+	not stucked |- inc, dec -> stucked := true;
+	stucked     |- inc, dec ->;
+edon
+
+node Ctrl
+edon
+
+node Tank
+     state
+     	level	   : [0, nbSensor];
+     init
+	level 	   := nbSensor/2;
+     flow
+	upStream   : [0, 4];
+	downStream : [0, 2];
+     event
+	time;
+     trans
+	upStream > downStream
+		 |- time -> level := level +1;
+	upStream < downStream
+		 |- time -> level := level -1;
+        upStream = downStream & upStream > 0
+		 |- time -> level := level - 1;
+        upStream = downStream & upStream>0
+		 |- time -> level := level + 1;
+	upStream = downStream & upStream = 0 	|- time ->;
+        upStream = downStream & upStream>0      |- time ->;
+	upStream > downStream & level=nbSensors |- time ->;
+	upStream < downStream & level=0 	|- time ->;
+edon
+
+node System
+     sub
+	T : Tank;
+	C : Ctrl;
+	V : Vanner [3];
+     assert
+	T.upStream = (V[0].flow + V[1].flow);
+	T.downStream = V[2];
+     state ctrl :
+edon

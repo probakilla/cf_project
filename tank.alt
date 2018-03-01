@@ -1,0 +1,183 @@
+Const nbSensors = 4;
+
+node Valve
+  state
+    rate : [0,2] : public;
+    stucked : bool;
+  init
+    rate := 0;
+    stucked := false;
+  event
+    dec, inc;
+  trans
+    ~stucked |- dec -> rate := rate - 1;
+    ~stucked |- inc -> rate := rate + 1;
+    ~stucked & rate=0 |- dec -> ;
+    ~stucked & rate=2 |- inc -> ;
+    ~stucked |- dec -> stucked := true;
+    ~stucked |- inc -> stucked := true;
+    stucked  |- dec -> ;
+    stucked  |- inc -> ;
+  assert
+    stucked = false;
+edon
+
+node Tank
+  state
+    level : [0,nbSensors] : public;
+  init
+    level := nbSensors/2;
+  flow
+    amont : [0,4];
+    aval : [0,2];
+  event
+    time
+  trans
+    amont > aval |- time -> level := level+1;
+    amont < aval |- time -> level := level-1;
+    (amont = aval) & (amont = 0) |- time ->;
+    amont = aval & amont > 0  	 |- time -> level := level - 1;
+    (amont = aval) & (amont > 0) |- time ->;
+    amont = aval & amont > 0  	 |- time -> level := level + 1;
+    /* To prevent deadlocks */
+    amont > aval & level = nbSensors |- time -> ;
+    amont < aval & level = 0 |- time -> ;
+edon
+
+node Ctrl
+     flow
+	/*
+	 * Observation du contrôleur
+	 * Les débits des vannes
+	 * Le niveau dans la cuve
+	 */
+	rate : [0, 2][3];
+	level : [0, nbSensors];
+     event
+	/*
+	 * 27 commandes possibles
+	 * codage : "d" pour dec, "i" pour inc, "n" pour nop
+	 */
+	 ddd, ddi, ddn, did, dii, din, dnd, dni, dnn,
+	 idd, idi, idn, iid, iii, iin, ind, ini, inn,
+	 ndd, ndi, ndn, nid, nii, nin, nnd, nni, nnn;
+     trans
+	true |-
+	 ddd, ddi, ddn, did, dii, din, dnd, dni, dnn,
+	 idd, idi, idn, iid, iii, iin, ind, ini, inn,
+	 ndd, ndi, ndn, nid, nii, nin, nnd, nni, nnn
+	      -> ;
+	
+edon
+
+node SystemV1
+  sub
+    T : Tank;
+    C : CtrlUn;
+    V : Valve[3];
+  assert
+    /* Les canalisations */
+    T.amont = (V[0].rate + V[1].rate);
+    T.aval = V[2].rate;
+    /* L'observation du contrôleur */
+    C.rate[0] = V[0].rate;
+    C.rate[1] = V[1].rate;
+    C.rate[2] = V[2].rate;
+    C.level = T.level;
+  state
+    ctrl : bool;
+  init
+    ctrl = true;
+  event
+    cmd, env;
+  trans
+    ctrl  |- cmd -> ctrl := ~ctrl;
+    ~ctrl |- env -> ctrl := ~ctrl;
+  sync
+    // evolution de l'environnement
+    <env, T.time>;
+    // les commandes
+    <C.ddd, cmd, V[0].dec, V[1].dec, V[2].dec>;
+    <C.ddi, cmd, V[0].dec, V[1].dec, V[2].inc>;
+    <C.ddn, cmd, V[0].dec, V[1].dec>;
+    <C.did, cmd, V[0].dec, V[1].inc, V[2].dec>;
+    <C.dii, cmd, V[0].dec, V[1].inc, V[2].inc>;
+    <C.din, cmd, V[0].dec, V[1].inc>;
+    <C.dnd, cmd, V[0].dec, V[2].dec>;
+    <C.dni, cmd, V[0].dec, V[2].inc>;
+    <C.dnn, cmd, V[0].dec>;
+    <C.idd, cmd, V[0].inc, V[1].dec, V[2].dec>;
+    <C.idi, cmd, V[0].inc, V[1].dec, V[2].inc>;
+    <C.idn, cmd, V[0].inc, V[1].dec>;
+    <C.iid, cmd, V[0].inc, V[1].inc, V[2].dec>;
+    <C.iii, cmd, V[0].inc, V[1].inc, V[2].inc>;
+    <C.iin, cmd, V[0].inc, V[1].inc>;
+    <C.ind, cmd, V[0].inc, V[2].dec>;
+    <C.ini, cmd, V[0].inc, V[2].inc>;
+    <C.inn, cmd, V[0].inc>;
+    <C.ndd, cmd, V[1].dec, V[2].dec>;
+    <C.ndi, cmd, V[1].dec, V[2].inc>;
+    <C.ndn, cmd, V[1].dec>;
+    <C.nid, cmd, V[1].inc, V[2].dec>;
+    <C.nii, cmd, V[1].inc, V[2].inc>;
+    <C.nin, cmd, V[1].inc>;
+    <C.nnd, cmd, V[2].dec>;
+    <C.nni, cmd, V[2].inc>;
+    <C.nnn, cmd>;
+edon
+
+node SystemV0
+  sub
+    T : Tank;
+    C : Ctrl;
+    V : Valve[3];
+  assert
+    /* Les canalisations */
+    T.amont = (V[0].rate + V[1].rate);
+    T.aval = V[2].rate;
+    /* L'observation du contrôleur */
+    C.rate[0] = V[0].rate;
+    C.rate[1] = V[1].rate;
+    C.rate[2] = V[2].rate;
+    C.level = T.level;
+  state
+    ctrl : bool;
+  init
+    ctrl = true;
+  event
+    cmd, env;
+  trans
+    ctrl  |- cmd -> ctrl := ~ctrl;
+    ~ctrl |- env -> ctrl := ~ctrl;
+  sync
+    // evolution de l'environnement
+    <env, T.time>;
+    // les commandes
+    <C.ddd, cmd, V[0].dec, V[1].dec, V[2].dec>;
+    <C.ddi, cmd, V[0].dec, V[1].dec, V[2].inc>;
+    <C.ddn, cmd, V[0].dec, V[1].dec>;
+    <C.did, cmd, V[0].dec, V[1].inc, V[2].dec>;
+    <C.dii, cmd, V[0].dec, V[1].inc, V[2].inc>;
+    <C.din, cmd, V[0].dec, V[1].inc>;
+    <C.dnd, cmd, V[0].dec, V[2].dec>;
+    <C.dni, cmd, V[0].dec, V[2].inc>;
+    <C.dnn, cmd, V[0].dec>;
+    <C.idd, cmd, V[0].inc, V[1].dec, V[2].dec>;
+    <C.idi, cmd, V[0].inc, V[1].dec, V[2].inc>;
+    <C.idn, cmd, V[0].inc, V[1].dec>;
+    <C.iid, cmd, V[0].inc, V[1].inc, V[2].dec>;
+    <C.iii, cmd, V[0].inc, V[1].inc, V[2].inc>;
+    <C.iin, cmd, V[0].inc, V[1].inc>;
+    <C.ind, cmd, V[0].inc, V[2].dec>;
+    <C.ini, cmd, V[0].inc, V[2].inc>;
+    <C.inn, cmd, V[0].inc>;
+    <C.ndd, cmd, V[1].dec, V[2].dec>;
+    <C.ndi, cmd, V[1].dec, V[2].inc>;
+    <C.ndn, cmd, V[1].dec>;
+    <C.nid, cmd, V[1].inc, V[2].dec>;
+    <C.nii, cmd, V[1].inc, V[2].inc>;
+    <C.nin, cmd, V[1].inc>;
+    <C.nnd, cmd, V[2].dec>;
+    <C.nni, cmd, V[2].inc>;
+    <C.nnn, cmd>;
+edon
